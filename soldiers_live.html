@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ניהול חיילים</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; direction: rtl; min-height: 100dvh; }
+
+header { background: #1d4ed8; color: white; padding: 13px 16px; text-align: center; }
+header h1 { font-size: 1.15rem; }
+header .sub { font-size: 0.75rem; opacity: 0.8; margin-top: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.sync-btn { background: rgba(255,255,255,0.2); border: none; color: white; border-radius: 12px; padding: 2px 9px; font-size: 0.72rem; cursor: pointer; font-family: inherit; }
+.sync-btn:active { background: rgba(255,255,255,0.35); }
+
+.loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 14px; color: #64748b; }
+.spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #1d4ed8; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-screen { padding: 24px; text-align: center; color: #dc2626; }
+.error-screen p { margin-bottom: 12px; font-size: 0.9rem; color: #64748b; }
+.retry-btn { background: #1d4ed8; color: white; border: none; border-radius: 8px; padding: 10px 20px; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
+
+.tabs { display: flex; background: #1e3a8a; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex-shrink: 0; padding: 10px 14px; text-align: center; color: rgba(255,255,255,0.6); font-size: 0.83rem; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+.tab.active { color: white; border-bottom-color: #60a5fa; font-weight: bold; }
+
+.page { display: none; padding: 14px; }
+.page.active { display: block; }
+
+.section-title { font-size: 0.78rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 0 8px; }
+.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qbtn { background: white; border: 2px solid #e2e8f0; border-radius: 10px; padding: 11px 8px; text-align: center; cursor: pointer; font-size: 0.88rem; font-family: inherit; color: #1e293b; line-height: 1.3; }
+.qbtn:active { background: #eff6ff; border-color: #3b82f6; }
+.qbtn .icon { font-size: 1.3rem; display: block; margin-bottom: 3px; }
+
+.date-section { background: white; border-radius: 12px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 12px; }
+.date-section label { display: block; font-size: 0.85rem; color: #475569; margin-bottom: 8px; font-weight: 600; }
+.date-scroll { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.date-scroll::-webkit-scrollbar { display: none; }
+.date-chip { flex-shrink: 0; background: #f1f5f9; border: 2px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; cursor: pointer; text-align: center; min-width: 52px; }
+.date-chip .day-name { font-size: 0.68rem; color: #94a3b8; }
+.date-chip .day-num { font-size: 0.9rem; font-weight: bold; color: #334155; }
+.date-chip.selected { background: #1d4ed8; border-color: #1d4ed8; }
+.date-chip.selected .day-name, .date-chip.selected .day-num { color: white; }
+
+.filter-row { display: flex; gap: 8px; margin-top: 10px; }
+.filter-btn { flex: 1; padding: 9px 6px; border: 2px solid #e2e8f0; border-radius: 8px; background: white; font-family: inherit; font-size: 0.85rem; cursor: pointer; color: #374151; }
+.filter-btn.f-yes { background: #dcfce7; border-color: #16a34a; color: #166534; font-weight: bold; }
+.filter-btn.f-no  { background: #fee2e2; border-color: #dc2626; color: #991b1b; font-weight: bold; }
+.filter-btn.f-all { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: bold; }
+
+.results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.count-badge { background: #1d4ed8; color: white; padding: 3px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+.copy-all-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px 12px; font-size: 0.8rem; cursor: pointer; color: #475569; font-family: inherit; }
+.copy-all-btn:active { background: #dbeafe; }
+
+.result-list { display: flex; flex-direction: column; gap: 7px; }
+.rcard { background: white; border-radius: 10px; padding: 11px 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); display: flex; justify-content: space-between; align-items: center; border-right: 4px solid #94a3b8; }
+.rcard.c-green  { border-right-color: #16a34a; }
+.rcard.c-red    { border-right-color: #dc2626; }
+.rcard.c-yellow { border-right-color: #d97706; }
+.rcard-name { font-weight: bold; font-size: 0.95rem; color: #1e293b; }
+.rcard-sub  { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
+.rcard-right { text-align: left; flex-shrink: 0; margin-right: 8px; }
+.ma-num { font-size: 0.82rem; color: #334155; font-family: monospace; }
+.status-pill { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 0.72rem; font-weight: bold; margin-top: 3px; }
+.pill-green  { background: #dcfce7; color: #166534; }
+.pill-red    { background: #fee2e2; color: #991b1b; }
+.pill-yellow { background: #fef9c3; color: #854d0e; }
+.pill-gray   { background: #f1f5f9; color: #475569; }
+
+.empty-state { text-align: center; padding: 30px; color: #94a3b8; font-size: 0.9rem; }
+
+.search-wrap { position: relative; margin-bottom: 12px; }
+.search-input { width: 100%; border: 2px solid #e2e8f0; border-radius: 10px; padding: 10px 38px 10px 12px; font-size: 0.95rem; font-family: inherit; direction: rtl; outline: none; background: white; }
+.search-input:focus { border-color: #3b82f6; }
+.search-icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+
+.vehicle-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.vtab { flex: 1; padding: 10px 6px; border: 2px solid #e2e8f0; border-radius: 10px; background: white; font-family: inherit; font-size: 0.88rem; cursor: pointer; text-align: center; color: #374151; }
+.vtab.active { background: #1d4ed8; border-color: #1d4ed8; color: white; font-weight: bold; }
+.driver-card { background: white; border-radius: 10px; padding: 11px 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); display: flex; justify-content: space-between; align-items: center; border-right: 4px solid #6366f1; margin-bottom: 7px; }
+.permit-badge { background: #ede9fe; color: #5b21b6; padding: 2px 8px; border-radius: 8px; font-size: 0.75rem; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen" class="loading-screen">
+  <div class="spinner"></div>
+  <div>טוען נתונים מגוגל דרייב...</div>
+</div>
+
+<div id="error-screen" class="error-screen" style="display:none">
+  <div style="font-size:2rem">⚠️</div>
+  <div style="font-weight:bold;margin:8px 0">שגיאה בטעינת הנתונים</div>
+  <p id="error-msg"></p>
+  <button class="retry-btn" onclick="loadData()">נסה שוב</button>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>🪖 ניהול חיילים</h1>
+    <div class="sub">
+      <span id="header-info">טוען...</span>
+      <button class="sync-btn" onclick="loadData()">🔄 רענן</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active"  onclick="switchTab('quick')">⚡ שאילתות</div>
+    <div class="tab"         onclick="switchTab('date')">📅 לפי תאריך</div>
+    <div class="tab"         onclick="switchTab('drivers')">🚗 נהגים</div>
+    <div class="tab"         onclick="switchTab('search')">🔍 חיפוש</div>
+  </div>
+
+  <!-- QUICK -->
+  <div id="tab-quick" class="page active">
+    <div class="section-title">נוכחות כללית</div>
+    <div class="quick-grid">
+      <button class="qbtn" onclick="showByStatus(true)"><span class="icon">✅</span>כל המגיעים</button>
+      <button class="qbtn" onclick="showByStatus(false)"><span class="icon">❌</span>לא מגיעים</button>
+    </div>
+    <div class="section-title">לפי מחלקה</div>
+    <div class="quick-grid" id="dept-btns"></div>
+    <div class="section-title">לפי הערות</div>
+    <div class="quick-grid">
+      <button class="qbtn" onclick="showByNotes('חו&quot;ל','אוסטרליה','חוץ לארץ')"><span class="icon">✈️</span>בחו"ל</button>
+      <button class="qbtn" onclick="showByNotes('מבחן','בחינה','מכינה')"><span class="icon">📝</span>מבחנים</button>
+      <button class="qbtn" onclick="showByNotes('חולה','מחלה')"><span class="icon">🤒</span>חולה</button>
+      <button class="qbtn" onclick="showByNotes('חתונה','אירוע')"><span class="icon">💍</span>אירוע</button>
+      <button class="qbtn" onclick="showByNotes('הריון','לידה','יולדת')"><span class="icon">🍼</span>הריון/לידה</button>
+      <button class="qbtn" onclick="showByNotes('ביטול','בוטל')"><span class="icon">🚫</span>ביטול צו</button>
+    </div>
+    <div id="quick-results" style="margin-top:14px"></div>
+  </div>
+
+  <!-- DATE -->
+  <div id="tab-date" class="page">
+    <div class="date-section">
+      <label>בחר תאריך:</label>
+      <div class="date-scroll" id="date-chips"></div>
+      <div class="filter-row">
+        <button class="filter-btn f-yes" id="btn-yes" onclick="setFilter('מגיע')">✅ מגיעים</button>
+        <button class="filter-btn"       id="btn-no"  onclick="setFilter('לא מגיע')">❌ לא מגיעים</button>
+        <button class="filter-btn"       id="btn-all" onclick="setFilter('הכל')">📋 הכל</button>
+      </div>
+    </div>
+    <div id="date-results"></div>
+  </div>
+
+  <!-- DRIVERS -->
+  <div id="tab-drivers" class="page">
+    <div class="vehicle-tabs">
+      <button class="vtab active" onclick="showDrivers('דויד')">🚙 דויד</button>
+      <button class="vtab"        onclick="showDrivers('סוואנה')">🚐 סוואנה</button>
+      <button class="vtab"        onclick="showDrivers('האמר')">🛻 האמר</button>
+    </div>
+    <div id="driver-results"></div>
+  </div>
+
+  <!-- SEARCH -->
+  <div id="tab-search" class="page">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input class="search-input" id="search-input" placeholder="חפש לפי שם, מ.א., מחלקה..." oninput="doSearch()">
+    </div>
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<script>
+const SHEET_ID = '12RrWCsixAqOdRgmLPkQ15Em3KZm97cl4kGLaGiFSW7U';
+const DRIVERS_STATIC = {
+  'דויד': [
+    {name:'נווה דהרי',dept:'מחלקה 1',permit:"ג'פ ממוגן"},
+    {name:'אביאל חריזי',dept:'מחלקה 1',permit:"ג'פ ממוגן"},
+    {name:'לידור אוחנה',dept:'מחלקה 1',permit:"ג'פ ממוגן"},
+    {name:'מקסים קפלן',dept:'מחלקה 1',permit:'67'},
+    {name:'ווניה זלקה',dept:'מחלקה 1',permit:'67'},
+    {name:'עומרי בר',dept:'מחלקה 1',permit:'67'},
+    {name:'גל לבן',dept:'מחלקה 1',permit:'67'},
+    {name:'רון מזרחי',dept:'מחלקה 1',permit:'67'},
+    {name:'אברהם רוזנברג',dept:'מחלקה 2',permit:'67'},
+    {name:'אלעד אהרון',dept:'מחלקה 2',permit:"ג'פ ממוגן"},
+    {name:'גל קדוש',dept:'מחלקה 2',permit:"ג'פ ממוגן"},
+    {name:'אופק שושני',dept:'מחלקה 2',permit:"ג'פ ממוגן"},
+    {name:'ניר ארז',dept:'מחלקה 3',permit:"ג'פ ממוגן"},
+    {name:'איתיאל גוטדינר',dept:'מחלקה 3',permit:"ג'פ ממוגן"},
+    {name:'דינאור שטיין',dept:'מחלקה 3',permit:"ג'פ ממוגן"},
+    {name:'אדיר כהן',dept:'מחלקה 3',permit:'67'},
+    {name:'רונאל מלכה',dept:'מחלקה 3',permit:'67'},
+    {name:'עומר גלעדי',dept:'מפלג',permit:"ג'פ ממוגן"},
+    {name:'דוד שבנברג',dept:'מפלג',permit:"ג'פ ממוגן"},
+    {name:'שמואל תורן',dept:'מפלג',permit:"ג'פ ממוגן"},
+    {name:'יניב שכטר',dept:'מפלג',permit:"ג'פ ממוגן"},
+    {name:'יוגב בן אבו',dept:'מפלג',permit:"ג'פ ממוגן"},
+    {name:'איתי ניניו',dept:'',permit:"ג'פ ממוגן"},
+  ],
+  'סוואנה': [
+    {name:'אוריאל טוויטו',dept:'מחלקה 1',permit:'סוואנה'},
+    {name:'אסף כתבי',dept:'מחלקה 2',permit:'רכב מסחרי'},
+    {name:'יובל קארו',dept:'מחלקה 3',permit:'רכב מסחרי'},
+    {name:'נס לוי',dept:'מחלקה 3',permit:'משא עד 12 טון'},
+  ],
+  'האמר': [
+    {name:'נווה דהרי',dept:'מחלקה 1',permit:'האמר'},
+    {name:'אוריאל טוויטו',dept:'מחלקה 1',permit:'האמר לוחם'},
+    {name:'דור אדיבי',dept:'מחלקה 3',permit:'האמר'},
+    {name:'נס לוי',dept:'מחלקה 3',permit:'האמר'},
+    {name:'אברהם רוזיצקי',dept:'מחלקה 3',permit:'האמר'},
+    {name:'תומר יוספן',dept:'מחלקה 3',permit:'האמר'},
+    {name:'דוד בנעים',dept:'מפלג',permit:'האמר'},
+    {name:'דוד שבנברג',dept:'מפלג',permit:'האמר'},
+    {name:'מיכאל אירסוב',dept:'מפלג',permit:'האמר'},
+  ]
+};
+
+let SOLDIERS = [];
+let DATES = [];
+let selectedDate = '';
+let selectedFilter = 'מגיע';
+let selectedVehicle = 'דויד';
+let lastLoaded = null;
+
+const DAY_HE = ['א','ב','ג','ד','ה','ו','ש'];
+
+// ---- LOAD DATA FROM GOOGLE SHEETS ----
+async function loadData() {
+  document.getElementById('loading-screen').style.display = 'flex';
+  document.getElementById('error-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=%D7%94%D7%9B%D7%A0%D7%94`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('לא ניתן לקרוא את הקובץ (שגיאה ' + res.status + ')');
+    const csv = await res.text();
+    if (csv.includes('Signin') || csv.length < 100) throw new Error('הקובץ לא נגיש. ודא שהוא מוגדר "כל אחד עם הקישור יכול לצפות"');
+
+    parseCSV(csv);
+    lastLoaded = new Date();
+    document.getElementById('header-info').textContent = `${SOLDIERS.length} חיילים · עודכן ${lastLoaded.toLocaleTimeString('he-IL', {hour:'2-digit',minute:'2-digit'})}`;
+    buildUI();
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  } catch(e) {
+    document.getElementById('loading-screen').style.display = 'none';
+    document.getElementById('error-msg').textContent = e.message;
+    document.getElementById('error-screen').style.display = 'block';
+  }
+}
+
+function parseCSV(csv) {
+  const rows = csv.trim().split('\n').map(r => parseCSVRow(r));
+
+  // Row 0 = date serials, Row 1 = headers, Row 2+ = data
+  const dateRow = rows[0];
+  const headerRow = rows[1];
+
+  // Find date columns (cols 8-29 approximately)
+  DATES = [];
+  const colToDate = {};
+  for (let i = 0; i < dateRow.length; i++) {
+    const v = dateRow[i].replace(/"/g,'').trim();
+    if (v && !isNaN(parseFloat(v))) {
+      const serial = parseFloat(v);
+      if (serial > 40000) { // valid Excel date
+        const d = excelSerial(serial);
+        colToDate[i] = d;
+        DATES.push(d);
+      }
+    }
+  }
+
+  SOLDIERS = [];
+  const seen = new Set();
+  for (let i = 2; i < rows.length; i++) {
+    const parts = rows[i];
+    if (parts.length < 6) continue;
+    const ma = parts[0].replace(/"/g,'').trim();
+    if (!ma || isNaN(parseFloat(ma))) continue;
+    const maNum = String(Math.round(parseFloat(ma)));
+    if (seen.has(maNum)) continue;
+    seen.add(maNum);
+
+    let phone = parts[5].replace(/"/g,'').trim();
+    try {
+      if (/E/i.test(phone)) {
+        const p = String(Math.round(parseFloat(phone)));
+        phone = (p.length === 9 ? '0' : '') + p;
+      }
+    } catch(e) {}
+
+    const attendance = {};
+    for (const [col, date] of Object.entries(colToDate)) {
+      attendance[date] = (parts[col] || '').replace(/"/g,'').trim();
+    }
+
+    SOLDIERS.push({
+      ma: maNum,
+      full: parts[3].replace(/"/g,'').trim(),
+      dept: parts[4].replace(/"/g,'').trim(),
+      phone,
+      status: parts[6] ? parts[6].replace(/"/g,'').trim() : '',
+      notes: parts[parts.length-1] ? parts[parts.length-1].replace(/"/g,'').trim() : '',
+      attendance
+    });
+  }
+
+  if (!selectedDate && DATES.length) {
+    selectedDate = DATES.find(d => d.startsWith('02/07')) || DATES[0];
+  }
+}
+
+function excelSerial(serial) {
+  const d = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+  const dd = String(d.getUTCDate()).padStart(2,'0');
+  const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+  return `${dd}/${mm}`;
+}
+
+function parseCSVRow(row) {
+  const result = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < row.length; i++) {
+    const c = row[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += c; }
+  }
+  result.push(cur);
+  return result;
+}
+
+// ---- BUILD UI ----
+function buildUI() {
+  // Dept buttons
+  const deptGrid = document.getElementById('dept-btns');
+  deptGrid.innerHTML = '';
+  const depts = [...new Set(SOLDIERS.map(s => s.dept).filter(Boolean))].sort();
+  depts.forEach(d => {
+    const b = document.createElement('button');
+    b.className = 'qbtn';
+    b.innerHTML = `<span class='icon'>🪖</span>${d}`;
+    b.onclick = () => showDept(d);
+    deptGrid.appendChild(b);
+  });
+
+  // Date chips
+  const chipsEl = document.getElementById('date-chips');
+  chipsEl.innerHTML = '';
+  DATES.forEach(date => {
+    const [dd, mm] = date.split('/');
+    const jsDate = new Date(2024, parseInt(mm)-1, parseInt(dd));
+    const dayName = DAY_HE[jsDate.getDay()];
+    const chip = document.createElement('div');
+    chip.className = 'date-chip' + (date === selectedDate ? ' selected' : '');
+    chip.dataset.date = date;
+    chip.innerHTML = `<div class='day-name'>${dayName}</div><div class='day-num'>${date}</div>`;
+    chip.onclick = () => {
+      selectedDate = date;
+      document.querySelectorAll('.date-chip').forEach(c => c.classList.toggle('selected', c.dataset.date === date));
+      renderDateResults();
+    };
+    chipsEl.appendChild(chip);
+  });
+  setTimeout(() => {
+    const c = chipsEl.querySelector('[data-date="01/07"]');
+    if (c) c.scrollIntoView({block:'nearest',inline:'center'});
+  }, 50);
+
+  renderDateResults();
+  showDrivers(selectedVehicle);
+}
+
+// ---- HELPERS ----
+function isArriving(s) { const st = (s.status||'').trim(); return st==='מגיע'||st==='חלקית'; }
+function arrivalColor(st) {
+  if (st==='מגיע') return 'c-green';
+  if (st==='חלקית') return 'c-yellow';
+  if (st==='לא מגיע'||st==='לא ענה') return 'c-red';
+  return '';
+}
+function pillClass(st) {
+  if (st==='מגיע') return 'pill-green';
+  if (st==='חלקית') return 'pill-yellow';
+  if (st==='לא מגיע'||st==='לא ענה') return 'pill-red';
+  return 'pill-gray';
+}
+function sortByArrival(list) {
+  return [...list].sort((a,b) => (isArriving(a)?0:1) - (isArriving(b)?0:1));
+}
+function sortByDateArrival(list, date) {
+  const score = v => v==='מגיע'?0 : v==='חלקית'?1 : 2;
+  return [...list].sort((a,b) => score((a.attendance[date]||'').trim()) - score((b.attendance[date]||'').trim()));
+}
+
+// ---- TABS ----
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['quick','date','drivers','search'][i]===name));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if (name==='date') renderDateResults();
+  if (name==='drivers') showDrivers(selectedVehicle);
+}
+
+// ---- DATE ----
+function setFilter(f) {
+  selectedFilter = f;
+  document.getElementById('btn-yes').className = 'filter-btn'+(f==='מגיע'?' f-yes':'');
+  document.getElementById('btn-no').className  = 'filter-btn'+(f==='לא מגיע'?' f-no':'');
+  document.getElementById('btn-all').className = 'filter-btn'+(f==='הכל'?' f-all':'');
+  renderDateResults();
+}
+function renderDateResults() {
+  let list = SOLDIERS.filter(s => {
+    const val = (s.attendance[selectedDate]||'').trim();
+    if (selectedFilter==='הכל') return true;
+    if (selectedFilter==='מגיע') return val==='מגיע'||val==='חלקית';
+    if (selectedFilter==='לא מגיע') return val==='לא מגיע';
+    return true;
+  });
+  list = sortByDateArrival(list, selectedDate);
+  showResults('date-results', list, selectedDate);
+}
+
+// ---- QUICK ----
+function showByStatus(arriving) {
+  let list = SOLDIERS.filter(s => arriving ? isArriving(s) : !isArriving(s));
+  showResults('quick-results', sortByArrival(list));
+}
+function showDept(dept) {
+  showResults('quick-results', sortByArrival(SOLDIERS.filter(s => s.dept===dept)));
+}
+function showByNotes(...kw) {
+  const list = SOLDIERS.filter(s => kw.some(k => (s.notes||'').toLowerCase().includes(k.toLowerCase())));
+  showResults('quick-results', sortByArrival(list));
+}
+
+// ---- DRIVERS ----
+function showDrivers(vehicle) {
+  selectedVehicle = vehicle;
+  document.querySelectorAll('.vtab').forEach((b,i) => b.classList.toggle('active', ['דויד','סוואנה','האמר'][i]===vehicle));
+  const list = DRIVERS_STATIC[vehicle] || [];
+  const enriched = list.map(d => {
+    const s = SOLDIERS.find(sol => sol.full===d.name || (d.name.split(' ').every(w => sol.full.includes(w))));
+    return {...d, status: s?s.status:'', ma: s?s.ma:''};
+  });
+  const el = document.getElementById('driver-results');
+  if (!enriched.length) { el.innerHTML = '<div class="empty-state">אין נהגים</div>'; return; }
+  const copyText = enriched.map(d => `${d.name} | ${d.dept} | היתר: ${d.permit}${d.status?' | '+d.status:''}`).join('\n');
+  let html = `<div class='results-header'><span class='count-badge'>${enriched.length} נהגים</span><button class='copy-all-btn' onclick='copyText(\`${copyText.replace(/`/g,"\\`")}\`,this)'>📋 העתק</button></div><div class='result-list'>`;
+  enriched.forEach(d => {
+    html += `<div class='driver-card ${arrivalColor(d.status)}'>
+      <div><div class='rcard-name'>${d.name}</div><div class='rcard-sub'>${d.dept}</div></div>
+      <div class='rcard-right'>
+        <div class='permit-badge'>${d.permit}</div>
+        ${d.status?`<div class='status-pill ${pillClass(d.status)}' style='display:block;margin-top:4px;text-align:center'>${d.status}</div>`:''}
+      </div></div>`;
+  });
+  el.innerHTML = html + '</div>';
+}
+
+// ---- SEARCH ----
+function doSearch() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  if (!q) { document.getElementById('search-results').innerHTML = ''; return; }
+  const list = SOLDIERS.filter(s =>
+    s.full.toLowerCase().includes(q) || s.ma.includes(q) ||
+    s.dept.toLowerCase().includes(q) || (s.notes||'').toLowerCase().includes(q) ||
+    (s.phone||'').includes(q)
+  );
+  showResults('search-results', sortByArrival(list));
+}
+
+// ---- RENDER ----
+function showResults(containerId, list, dateCtx) {
+  const el = document.getElementById(containerId);
+  if (!list.length) { el.innerHTML = `<div class='empty-state'>לא נמצאו חיילים</div>`; return; }
+  const copyText = list.map(s => `${s.full} | מ.א: ${s.ma} | ${s.dept}${s.status?' | '+s.status:''}`).join('\n');
+  let html = `<div class='results-header'><span class='count-badge'>${list.length} חיילים</span><button class='copy-all-btn' onclick='copyText(\`${copyText.replace(/`/g,"\\`")}\`,this)'>📋 העתק רשימה</button></div><div class='result-list'>`;
+  list.forEach(s => {
+    const st = dateCtx ? (s.attendance[dateCtx]||'').trim() : (s.status||'').trim();
+    html += `<div class='rcard ${arrivalColor(st)}'>
+      <div><div class='rcard-name'>${s.full}</div><div class='rcard-sub'>${s.dept}</div></div>
+      <div class='rcard-right'>
+        <div class='ma-num'>${s.ma}</div>
+        ${st?`<div class='status-pill ${pillClass(st)}'>${st}</div>`:''}
+      </div></div>`;
+  });
+  el.innerHTML = html + '</div>';
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => { btn.textContent = '✓ הועתק!'; setTimeout(() => btn.textContent = '📋 העתק רשימה', 2000); });
+}
+
+// START
+loadData();
+</script>
+</body>
+</html>
